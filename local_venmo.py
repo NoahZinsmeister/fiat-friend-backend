@@ -103,13 +103,14 @@ def fetch_since():
         new_tx_ref = ref.push()
         new_tx_ref.set({
             "timestamp": pd.to_datetime(row["created_time"]).value // 10**9,
-            "amountFrom": row["amount"],
+            "amount": row["amount"],
             "currencyFrom": 'USD',
             "currencyTo": row['currency'],
             "from": row['sender_username'],
             "fromPicture": row['sender_picture'],
             "liquidityProvider": username,
-            "to": row['to']
+            "to": row['to'],
+            "status": "pending"
         })
 
     return data
