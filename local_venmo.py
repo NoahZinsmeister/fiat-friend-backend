@@ -22,6 +22,7 @@ user_id = os.getenv("USER_ID")
 username = os.getenv("USERNAME")
 LIMIT = 100000
 INTERVAL = 15
+MAX_DOLLARS = 10
 
 def initialize():
     global access_token
@@ -69,7 +70,7 @@ def filter_transaction(transaction):
     }
 
 def fetch_since():
-    global user_id, username, LIMIT, access_token
+    global user_id, username, LIMIT, access_token, MAX_DOLLARS
 
     max_since_fetched = ref.order_by_child('timestamp').limit_to_last(1).get()
 
@@ -100,18 +101,19 @@ def fetch_since():
     data = pd.DataFrame([filtered_response for filtered_response in filtered_responses if filtered_response is not None])
 
     for index, row in data.iterrows():
-        new_tx_ref = ref.push()
-        new_tx_ref.set({
-            "timestamp": pd.to_datetime(row["created_time"]).value // 10**9,
-            "amount": row["amount"],
-            "currencyFrom": 'USD',
-            "currencyTo": row['currency'],
-            "from": row['sender_username'],
-            "fromPicture": row['sender_picture'],
-            "liquidityProvider": username,
-            "to": row['to'],
-            "status": "pending"
-        })
+        if row["amount"] <= MAX_DOLLARS:
+            new_tx_ref = ref.push()
+            new_tx_ref.set({
+                "timestamp": pd.to_datetime(row["created_time"]).value // 10**9,
+                "amount": row["amount"],
+                "currencyFrom": 'USD',
+                "currencyTo": row['currency'],
+                "from": row['sender_username'],
+                "fromPicture": row['sender_picture'],
+                "liquidityProvider": username,
+                "to": row['to'],
+                "status": "pending"
+            })
 
     return data
 
