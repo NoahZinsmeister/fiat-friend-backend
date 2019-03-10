@@ -13,7 +13,7 @@ from firebase_admin import db
 from dotenv import load_dotenv
 load_dotenv()
 
-cred = credentials.Certificate("./fiatfriends-firebase-adminsdk-8a7jb-d740e79b7f.json")
+cred = credentials.Certificate("./fiatfriends-firebase-adminsdk-8a7jb-8ef02b1164.json")
 firebase_admin.initialize_app(cred, { 'databaseURL': 'https://fiatfriends.firebaseio.com/' })
 ref = db.reference('venmo')
 
@@ -23,6 +23,7 @@ username = os.getenv("USERNAME")
 LIMIT = 100000
 INTERVAL = 15
 MAX_DOLLARS = 10
+SINCE = int(time.time())
 
 def initialize():
     global access_token
@@ -31,13 +32,16 @@ def initialize():
     access_token = venmo.auth.get_access_token()
 
 def main():
-    global INTERVAL
+    global INTERVAL, access_token, SINCE
 
     initialize()
+    print('Listening...')
     while True:
+        # print('since', SINCE)
+        # print(access_token)
         data = fetch_since()
-        if data.shape[0] > 0:
-            print('Incoming Transaction(s) detected...')
+        if data is not None and data.shape[0] > 0:
+            print('Incoming Transaction(s) Logged')
         time.sleep(INTERVAL)
 
 def filter_transaction(transaction):
@@ -66,22 +70,23 @@ def filter_transaction(transaction):
         "amount": transaction["transactions"][0]["amount"],
         "created_time": transaction["created_time"],
         "to": parsed_message['recipient'],
-        "currency": parsed_message['recipientCurrency'] if 'recipientCurrency' in parsed_message else 'ETH'
+        "currency": parsed_message['recipientCurrency'] if 'recipientCurrency' in parsed_message else 'ETH',
+        "note": parsed_message['note'] if 'note' in parsed_message else ''
     }
 
 def fetch_since():
-    global user_id, username, LIMIT, access_token, MAX_DOLLARS
+    global user_id, username, LIMIT, SINCE, access_token, MAX_DOLLARS
 
     max_since_fetched = ref.order_by_child('timestamp').limit_to_last(1).get()
 
-    if len(max_since_fetched) == 0:
-        max_since_fetched = 1552130679
+    if max_since_fetched is None or len(max_since_fetched) == 0:
+        max_since_fetched = SINCE
     else:
         result = max_since_fetched.popitem(last=False)[1]
         if type(result) is not dict or 'timestamp' not in result:
-            max_since_fetched = 1552130679
+            max_since_fetched = SINCE
         else:
-            max_since_fetched = result['timestamp']
+            max_since_fetched = int(result['timestamp'])
 
     response = requests.get(
         f'https://venmo.com/api/v5/users/{user_id}/feed',
@@ -104,8 +109,8 @@ def fetch_since():
         if row["amount"] <= MAX_DOLLARS:
             new_tx_ref = ref.push()
             new_tx_ref.set({
-                "timestamp": pd.to_datetime(row["created_time"]).value // 10**9,
-                "amount": row["amount"],
+                "timestamp": str(pd.to_datetime(row["created_time"]).value // 10**9),
+                "amount": str(row["amount"]),
                 "currencyFrom": 'USD',
                 "currencyTo": row['currency'],
                 "from": row['sender_username'],
